@@ -25,17 +25,25 @@ jobs:
           zone: us-central1-a                        # <-- Apne VM ka sahi Zone dalein (jaise us-central1-a, asia-south1-a)
           ssh_private_key: ${{ secrets.KEY }}        # Aapki banayi hui private key
           command: |
-            # 1. Sudo ka use karke force-entry karein sahi folder mein
-            sudo bash -c "cd /home/sandeshsaini7983637650/github || cd /root/github"
-            
-            # 2. Poore block ko sudo ke andar chalayein taaki permission na ruke
             sudo bash -c "
+              # 1. Sahi project directory mein jayein
               cd /home/sandeshsaini7983637650/github || cd /root/github
-              git reset --hard origin/main
-              git config pull.rebase false
-              git pull origin main
+              
+              # 2. Git ko clean aur fresh karne ke liye remote wapas clean setup karein
+              git remote remove origin 2>/dev/null || true
+              git remote add origin https://github.com
+              
+              # 3. GitHub se saari branches ki taaza information khinchein
+              git fetch --all --prune
+              
+              # 4. Local branches ka lafda khatam karke direct origin/main par overwrite karein
+              git checkout -B main origin/main || git checkout -B master origin/master
+              git reset --hard origin/main || git reset --hard origin/master
+              
+              # 5. Docker Containers ko naye code ke sath build aur up karein
               docker compose up -d --build
             "
+
 
 
       
