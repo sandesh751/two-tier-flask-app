@@ -21,7 +21,7 @@ jobs:
       - name: Deploy to GCP VM via Google SSH
         uses: google-github-actions/ssh-compute@v1
         with:
-          instance_name: instance-20260826-152012   # <-- Apne VM ka exact naam check kar lein
+          instance_name: instance-20260826-152012  # <-- Apne VM ka exact naam check kar lein
           zone: us-central1-a                        # <-- Apne VM ka sahi Zone dalein (jaise us-central1-a, asia-south1-a)
           ssh_private_key: ${{ secrets.KEY }}        # Aapki banayi hui private key
           command: |
