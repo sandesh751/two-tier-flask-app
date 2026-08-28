@@ -27,7 +27,7 @@ jobs:
           command: |
             sudo bash -c "
               # 1. Sahi project directory mein jayein
-              cd /home/sandeshsaini7983637650/github || cd /root/github
+              cd /home/sandeshsaini7983637650/github/two-tier-flask-app || cd /root/github/two-tier-flask-app
               
               # 2. Git ko clean aur fresh karne ke liye remote wapas clean setup karein
               git remote remove origin 2>/dev/null || true
