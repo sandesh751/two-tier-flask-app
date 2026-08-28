@@ -25,10 +25,17 @@ jobs:
           zone: us-central1-a                        # <-- Apne VM ka sahi Zone dalein (jaise us-central1-a, asia-south1-a)
           ssh_private_key: ${{ secrets.KEY }}        # Aapki banayi hui private key
           command: |
-            cd /home/sandeshsaini7983637650/github || cd /root/github
-            sudo git reset --hard origin/main
-            sudo git config pull.rebase false
-            sudo git pull origin main
-            sudo docker compose up -d --build
+            # 1. Sudo ka use karke force-entry karein sahi folder mein
+            sudo bash -c "cd /home/sandeshsaini7983637650/github || cd /root/github"
+            
+            # 2. Poore block ko sudo ke andar chalayein taaki permission na ruke
+            sudo bash -c "
+              cd /home/sandeshsaini7983637650/github || cd /root/github
+              git reset --hard origin/main
+              git config pull.rebase false
+              git pull origin main
+              docker compose up -d --build
+            "
+
 
       
