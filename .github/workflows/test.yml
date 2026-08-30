@@ -1,49 +1,93 @@
-name: test-deployment
+name: Secure DevSecOps to GCP VM (Kind Cluster)
 
 on:
   push:
     branches:
       - main
+
 jobs:
-  deploy:
+  # ------------------ STAGE 1: CI & SECURITY (वही पुरानी बेस्ट पाइपलाइन) ------------------
+  ci-stage:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      # 1. Google Cloud ke sath secure connection banana
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@v3
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # 2. Bina manually key manage kiye GCP VM par command chalana
-      - name: Deploy to GCP VM via Google SSH
-        uses: google-github-actions/ssh-compute@v1
-        with:
-          instance_name: instance-20260826-152012  # <-- Apne VM ka exact naam check kar lein
-          zone: us-central1-a                        # <-- Apne VM ka sahi Zone dalein (jaise us-central1-a, asia-south1-a)
-          ssh_private_key: ${{ secrets.KEY }}        # Aapki banayi hui private key
-          command: |
-            sudo bash -c "
-              # 1. Sahi project directory mein jayein
-              cd /home/sandeshsaini7983637650/github/two-tier-flask-app || cd /root/github/two-tier-flask-app
-              
-              # 2. Git ko clean aur fresh karne ke liye remote wapas clean setup karein
-              git remote remove origin 2>/dev/null || true
-              git remote add origin https://github.com
-              
-              # 3. GitHub se saari branches ki taaza information khinchein
-              git fetch --all --prune
-              
-              # 4. Local branches ka lafda khatam karke direct origin/main par overwrite karein
-              git checkout -B main origin/main || git checkout -B master origin/master
-              git reset --hard origin/main || git reset --hard origin/master
-              
-              # 5. Docker Containers ko naye code ke sath build aur up karein
-              docker compose up -d --build
-            "
+    - name: Trivy FS Security Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
 
+    - name: Log in to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: Build and Load Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false 
+        load: true  
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}
+          ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
 
-      
+    - name: Trivy Image Security Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}'
+        format: 'table'
+        exit-code: '1'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Push Docker Image to DockerHub
+      run: |
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
+
+  # ------------------ STAGE 2: CD (DEPLOY TO GCP VM + KIND) ------------------
+  cd-stage:
+    runs-on: ubuntu-latest
+    needs: ci-stage 
+
+    steps:
+    # 1. हम सीधे SSH Action का उपयोग करके VM के अंदर कमांड्स रन करेंगे
+    - name: Deploy to Kind Cluster via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VM_HOST }}
+        username: ${{ secrets.VM_USER }}
+        key: ${{ secrets.VM_SSH_KEY }}
+        script: |
+          # VM के अंदर अपने प्रोजेक्ट वाले फोल्डर में जाना (अगर फोल्डर नहीं है तो गिट क्लोन करें)
+          if [ ! -d "my-app-repo" ]; then
+            git clone https://github.com{{ github.repository }}.git my-app-repo
+          fi
+          cd my-app-repo
+          
+          # VM के अंदर लेटेस्ट कोड पुल (Pull) करना ताकि deployment.yaml अपडेट हो जाए
+          git reset --hard
+          git pull origin main
+          
+          # deployment.yaml में इमेज टैग को गिटहब के लेटेस्ट कमिट ID से बदलना
+          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" deployment.yaml
+          
+          # Kind क्लस्टर पर नया अपडेट अप्लाई करना
+          kubectl apply -f deployment.yaml
+          
+          # डिप्लॉयमेंट का स्टेटस चेक करना
+          kubectl rollout status deployment/my-app-deployment
