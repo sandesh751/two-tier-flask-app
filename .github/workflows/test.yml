@@ -73,21 +73,19 @@ jobs:
         username: ${{ secrets.VM_USER }}
         key: ${{ secrets.VM_SSH_KEY }}
         script: |
-          # VM के अंदर अपने प्रोजेक्ट वाले फोल्डर में जाना (अगर फोल्डर नहीं है तो गिट क्लोन करें)
-          if [ ! -d "my-app-repo" ]; then
-            git clone https://github.com{{ github.repository }}.git my-app-repo
-          fi
-          cd my-app-repo
+          cd /home/sandeshsaini7983637650/new/two-tier-flask-app
           
           # VM के अंदर लेटेस्ट कोड पुल (Pull) करना ताकि deployment.yaml अपडेट हो जाए
           git reset --hard
           git pull origin main
+
+          cd k8s
           
           # deployment.yaml में इमेज टैग को गिटहब के लेटेस्ट कमिट ID से बदलना
-          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" deployment.yaml
+          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" ./k8s.yml
           
           # Kind क्लस्टर पर नया अपडेट अप्लाई करना
-          kubectl apply -f deployment.yaml
+          kubectl apply -f /.k8s
           
           # डिप्लॉयमेंट का स्टेटस चेक करना
           kubectl rollout status deployment/my-app-deployment
