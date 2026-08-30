@@ -91,4 +91,5 @@ jobs:
           kubectl apply -f ./k8s/
           
           # डिप्लॉयमेंट का स्टेटस चेक करना
-          kubectl rollout status deployment/my-app-deployment
+          kubectl rollout status deployment/two-tier-app
+ 
