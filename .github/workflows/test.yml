@@ -83,13 +83,12 @@ jobs:
           git reset --hard
           git pull origin main
 
-          cd k8s
           
           # deployment.yaml में इमेज टैग को गिटहब के लेटेस्ट कमिट ID से बदलना
-          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" ./k8s.yml
+          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" ./k8s/*.*ml || true
           
           # Kind क्लस्टर पर नया अपडेट अप्लाई करना
-          kubectl apply -f ./k8s
+          kubectl apply -f ./k8s/
           
           # डिप्लॉयमेंट का स्टेटस चेक करना
           kubectl rollout status deployment/my-app-deployment
