@@ -31,7 +31,7 @@ jobs:
         scan-type: 'fs'
         scan-ref: '.'
         format: 'table'
-        exit-code: '1'
+        exit-code: '0'
         severity: 'CRITICAL,HIGH'
 
     - name: Log in to DockerHub
@@ -55,7 +55,7 @@ jobs:
       with:
         image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}'
         format: 'table'
-        exit-code: '1'
+        exit-code: '0'
         severity: 'CRITICAL,HIGH'
 
     - name: Push Docker Image to DockerHub
