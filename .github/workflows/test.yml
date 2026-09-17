@@ -85,7 +85,7 @@ jobs:
 
           
           # deployment.yaml में इमेज टैग को गिटहब के लेटेस्ट कमिट ID से बदलना
-          sed -i "s|DOCKERHUB_USERNAME/my-app:latest|${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }}|g" ./k8s/*.*ml || true
+           kubectl set image deployment/two-tier-app two-tier-app=${{ secrets.DOCKERHUB_USERNAME }}/my-app:${{ github.sha }} 
           
           # Kind क्लस्टर पर नया अपडेट अप्लाई करना
           kubectl apply -f ./k8s/
