@@ -1,0 +1,97 @@
+name: build and deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  PROJECT_ID: project-3d4fd68e-9492-4690-aa8
+  REGION: us-central1
+  REPOSITORY: image-collector
+  IMAGE_NAME: my-app
+  CLUSTER_NAME: cluster-1
+  CLUSTER_LOCATION: us-central1-a
+  NAMESPACE: sandesh
+
+jobs:
+    build-and-deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: download code
+          uses: actions/checkout@v4
+
+        - name: sonarqube scan
+          uses: SonarSource/sonarqube-scan-action@v8
+          with:
+            args: >
+              -Dsonar.projectKey=my-app
+              -Dsonar.sources=.
+          env:
+          SONAR_TOKEN: 
+          SONAR_HOST_URL:
+
+        - name: Authenticate to GCP
+          uses: google-github-actions/auth@v2
+          with:
+            workload_identity_provider: "projects/511846968460/locations/global/workloadIdentityPools/identity-pool/providers/github"
+            service_account: "wif-577@project-3d4fd68e-9492-4690-aa8.iam.gserviceaccount.com"
+
+        - name: setup gcloud SDK
+          uses: google-github-actions/setup-gcloud@v2
+
+           
+
+        - name: configure docker to AR
+          run: |
+            gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+        - name: build image
+          run: |
+            docker build \
+              -t us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest \
+              -t us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ./
+
+        - name: Trivy Image Scan
+          uses: aquasecurity/trivy-action@v0.36.0
+          with:
+            image-ref: "us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+            format: "table"
+            exit-code: "0"
+            ignore-unfixed: "true"
+            vuln-type: "os,library"
+            severity: "CRITICAL,HIGH"
+
+        - name: push to AR
+          run: |
+            docker push us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker push us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest
+
+        - name: setup GKE credentials
+          uses: 'google-github-actions/get-gke-credentials@v2'
+          with:
+            cluster_name: "${{ env.CLUSTER_NAME }}"
+            location: "${{ env.CLUSTER_LOCATION }}"
+            project_id: "${{ env.PROJECT_ID }}"
+
+        - name: deploy to GKE cluster
+          run: |
+            kubectl set image deployment/app-deploy \
+            app=us-central1-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+        - name: verify rollout
+          run: |
+            kubectl rollout status deployment/app -n ${{ env.NAMESPACE }} \
+            --timeout=5m
+        
+          
+           
+        
+        
+        
+    
